@@ -5,6 +5,7 @@ import 'package:all_in_one/ui/views/startup/startup_view.dart';
 import 'package:stacked/stacked_annotations.dart';
 import 'package:stacked_services/stacked_services.dart';
 import 'package:all_in_one/ui/views/instagram/instagram_view.dart';
+import 'package:all_in_one/services/instagram_service.dart';
 // @stacked-import
 
 @StackedApp(
@@ -18,7 +19,8 @@ import 'package:all_in_one/ui/views/instagram/instagram_view.dart';
     LazySingleton(classType: BottomSheetService),
     LazySingleton(classType: DialogService),
     LazySingleton(classType: NavigationService),
-    // @stacked-service
+    LazySingleton(classType: InstagramService),
+// @stacked-service
   ],
   bottomsheets: [
     StackedBottomsheet(classType: NoticeSheet),

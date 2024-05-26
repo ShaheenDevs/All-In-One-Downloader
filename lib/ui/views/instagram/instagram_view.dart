@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:stacked/stacked.dart';
-
 import 'instagram_viewmodel.dart';
 
 class InstagramView extends StackedView<InstagramViewModel> {
@@ -13,11 +12,37 @@ class InstagramView extends StackedView<InstagramViewModel> {
     Widget? child,
   ) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
-      body: Container(
-        padding: const EdgeInsets.only(left: 25.0, right: 25.0),
+      appBar: AppBar(
+        title: const Text('Instagram Video Downloader'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: viewModel.urlCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Instagram Video URL',
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed:
+                  viewModel.isBusy ? null : () => viewModel.downloadVideo(),
+              child: viewModel.isBusy
+                  ? const CircularProgressIndicator()
+                  : const Text('Download'),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  @override
+  void onViewModelReady(InstagramViewModel viewModel) {
+    viewModel.onViewModelReady();
+    super.onViewModelReady(viewModel);
   }
 
   @override
