@@ -15,46 +15,36 @@ class InstagramViewModel extends BaseViewModel {
   final TextEditingController urlCtrl =
       TextEditingController(text: "https://www.instagram.com/reel/C50tBLjsxo3");
 
-  Stream<List<SharedMediaFile>> sharedMediaFileStrem =
+  Stream<List<SharedMediaFile>> sharedMediaFileStream =
       ReceiveSharingIntent.instance.getMediaStream();
   Future<List<SharedMediaFile>> sharedMediaFileFuture =
       ReceiveSharingIntent.instance.getInitialMedia();
+
   void onViewModelReady() {
-    sharedMediaFileStrem.listen((List<SharedMediaFile> value) {
-      urlCtrl.text = value.first.path;
+    sharedMediaFileStream.listen((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) {
+        urlCtrl.text = value.first.path;
+      } else {
+        log("No shared media files available.");
+      }
     }, onError: (err) {
       log("getLinkStream error: $err");
     });
-
-    // Get initial shared text
-    sharedMediaFileFuture.then((List<SharedMediaFile>? value) {
-      if (value != null) {
-        urlCtrl.text = value.first.path;
-      }
-    });
   }
- Future<void> requestPermissions() async {
-    if (Platform.isAndroid) {
-      if (await Permission.storage.isDenied || await Permission.photos.isDenied) {
-        Map<Permission, PermissionStatus> statuses = await [
-          Permission.storage,
-          if (Platform.isAndroid && await _requireManageExternalStoragePermission())
-            Permission.manageExternalStorage,
-          if (Platform.isAndroid && await _isAndroid33OrAbove())
-            Permission.photos
-        ].request();
 
-        // bool allGranted = statuses.values.every((status) => status.isGranted);
+  Future<void> requestPermissions() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.storage,
+      if (await _requireManageExternalStoragePermission())
+        Permission.manageExternalStorage,
+      if (await _isAndroid33OrAbove()) Permission.photos,
+    ].request();
 
-        // if (!allGranted) {
-        //   if (statuses[Permission.storage]?.isDenied == true ||
-        //       (await _requireManageExternalStoragePermission() && statuses[Permission.manageExternalStorage]?.isDenied == true) ||
-        //       (await _isAndroid33OrAbove() && statuses[Permission.photos]?.isDenied == true)) {
-        //     showErrorSnake('Storage or Photos permission denied. Please enable them in the app settings.');
-        //     openAppSettings();
-        //   }
-        // }
-      }
+    // Check if any permission is denied
+    bool allGranted = statuses.values.every((status) => status.isGranted);
+    if (!allGranted) {
+      showErrorSnake('Storage or Photos permission denied. Please enable them in the app settings.');
+      openAppSettings();
     }
   }
 
@@ -67,45 +57,48 @@ class InstagramViewModel extends BaseViewModel {
     final androidInfo = await DeviceInfoPlugin().androidInfo;
     return androidInfo.version.sdkInt >= 30; // Android 11 and above
   }
+
   Future<void> downloadVideo() async {
     setBusy(true);
+    await requestPermissions();
 
-     await requestPermissions();
+    if (urlCtrl.text.trim().isEmpty) {
+      showErrorSnake('No URL provided for download.');
+      setBusy(false);
+      return;
+    }
 
+    try {
+      final response = await http.get(Uri.parse(urlCtrl.text.trim()));
+      if (response.statusCode == 200) {
+        final directory = await getTemporaryDirectory();
+        final filePath = '${directory.path}/instagram_video.mp4';
+        final file = File(filePath);
 
-      try {
-        final response = await http.get(Uri.parse(urlCtrl.text.trim()));
-        if (response.statusCode == 200) {
-          final directory = await getTemporaryDirectory();
-          final filePath = '${directory.path}/instagram_video.mp4';
-          final file = File(filePath);
+        // Write bytes to the file and handle potential errors
+        await file.writeAsBytes(response.bodyBytes).catchError((error) {
+          showErrorSnake('File write error: $error');
+        });
 
-          // Write bytes to the file
-          await file.writeAsBytes(response.bodyBytes).catchError((error) {
-            showErrorSnake('File write error: $error');
-          });
-
-          // Verify if the file exists and has been written
-          if (await file.exists()) {
-            // Save video to gallery
-            final result = await GallerySaver.saveVideo(filePath);
-            if (result == true) {
-              showSucessSnake('Video downloaded to gallery');
-              log('Video file saved at $filePath');
-            } else {
-              showErrorSnake('Failed to save video to gallery');
-            }
+        // Check if the file exists
+        if (await file.exists()) {
+          final result = await GallerySaver.saveVideo(filePath);
+          if (result == true) {
+            showSucessSnake('Video downloaded to gallery');
+            log('Video file saved at $filePath');
           } else {
-            showErrorSnake('Failed to write video file');
+            showErrorSnake('Failed to save video to gallery');
           }
         } else {
-          showErrorSnake('Failed to download video: ${response.statusCode}');
+          showErrorSnake('Failed to write video file');
         }
-      } catch (e) {
-        showErrorSnake('Error: $e');
-      } finally {
-        setBusy(false);
+      } else {
+        showErrorSnake('Failed to download video: ${response.statusCode}');
       }
-    
+    } catch (e) {
+      showErrorSnake('Error: $e');
+    } finally {
+      setBusy(false);
+    }
   }
 }
